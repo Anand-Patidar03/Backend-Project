@@ -26,7 +26,7 @@ const getVideoComments = asyncHandler(async (req, res) => {
         video: new mongoose.Types.ObjectId(videoId),
       },
     },
-    {
+    { 
       $lookup: {
         from: "users",
         localField: "owner",

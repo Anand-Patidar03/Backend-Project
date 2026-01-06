@@ -43,7 +43,7 @@ console.log("Refresh Token generated:", refreshToken ? "YES" : "NO");
   }
 };
 
-const registerUser = asyncHandler(async (req, res) => {
+const registerUser = asyncHandler(async (req, res) => { 
   const { username, email, fullName, password } = req.body;
   console.log("username :" ,username);
   console.log("email :",email);

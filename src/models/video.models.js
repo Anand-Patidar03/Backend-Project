@@ -12,7 +12,7 @@ const videoSchema = new mongoose.Schema({
         required : [true,"Add the thumbnail"]
     },
     title : {
-        type : String,
+        type : String, 
         required : [true,"Please add the title"]
     },
     description : {

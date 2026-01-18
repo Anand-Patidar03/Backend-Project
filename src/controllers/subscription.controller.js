@@ -18,6 +18,10 @@ const toggleSubscription = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Channel id does not exist");
   }
 
+  if (channel._id.toString() === req.user?._id.toString()) {
+    throw new ApiError(400, "You cannot subscribe to your own channel");
+  }
+
   const isSubscriberExist = await Subscription.findOne({
     channel: channelId,
     subscriber: req.user._id,
@@ -100,7 +104,7 @@ const getSubscribedChannels = asyncHandler(async (req, res) => {
 
   const subscribedChannel = await Subscription.find({
     subscriber: subscriberId,
-  }).populate("channel", "username avatar");
+  }).populate("channel", "username avatar fullName");
 
   const totalSubscribedChannel = await Subscription.countDocuments({
     subscriber: subscriberId,

@@ -5,6 +5,100 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Video } from "../models/video.models.js";
 
+const getTweetComments = asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+  const { page = 1, limit = 10 } = req.query;
+
+  if (!mongoose.Types.ObjectId.isValid(tweetId)) {
+    throw new ApiError(400, "Invalid tweet ID");
+  }
+
+  const commentAggregate = Comment.aggregate([
+    {
+      $match: {
+        tweet: new mongoose.Types.ObjectId(tweetId),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "owner",
+      },
+    },
+    {
+      $unwind: "$owner",
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "comment",
+        as: "likes"
+      }
+    },
+    {
+      $addFields: {
+        likesCount: { $size: "$likes" },
+        isLiked: {
+          $cond: {
+            if: { $in: [req.user?._id, "$likes.likedBy"] },
+            then: true,
+            else: false
+          }
+        }
+      }
+    },
+    {
+      $project: {
+        "owner.username": 1,
+        "owner.avatar": 1,
+        "owner.fullName": 1,
+        content: 1,
+        createdAt: 1,
+        likesCount: 1,
+        isLiked: 1
+      },
+    },
+  ]);
+
+  const options = {
+    page: Number(page),
+    limit: Number(limit),
+    sort: { createdAt: -1 },
+  };
+
+  const comments = await Comment.aggregatePaginate(commentAggregate, options);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, comments, "Tweet comments fetched successfully"));
+});
+
+const addTweetComment = asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+  const { content } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(tweetId)) {
+    throw new ApiError(400, "Invalid tweet ID");
+  }
+
+  if (!content?.trim()) {
+    throw new ApiError(400, "Comment content is required");
+  }
+
+  const comment = await Comment.create({
+    content,
+    owner: req.user?._id,
+    tweet: tweetId,
+  });
+
+  return res
+    .status(201)
+    .json(new ApiResponse(201, comment, "Tweet comment added successfully"));
+});
+
 const getVideoComments = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
   const { page = 1, limit = 10 } = req.query;
@@ -37,10 +131,33 @@ const getVideoComments = asyncHandler(async (req, res) => {
       $unwind: "$owner",
     },
     {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "comment",
+        as: "likes"
+      }
+    },
+    {
+      $addFields: {
+        likesCount: { $size: "$likes" },
+        isLiked: {
+          $cond: {
+            if: { $in: [req.user?._id, "$likes.likedBy"] },
+            then: true,
+            else: false
+          }
+        }
+      }
+    },
+    {
       $project: {
         "owner.username": 1,
         "owner.avatar": 1,
         content: 1,
+        createdAt: 1,
+        likesCount: 1,
+        isLiked: 1
       },
     },
   ]);
@@ -55,7 +172,7 @@ const getVideoComments = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, comment, "Video comment fetched successfully"));
+    .json(new ApiResponse(200, comments, "Video comment fetched successfully"));
 });
 
 const addComment = asyncHandler(async (req, res) => {
@@ -135,4 +252,4 @@ const deleteComment = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, deleteComment, "Comment deleted successfully"));
 });
 
-export { getVideoComments, addComment, updateComment, deleteComment };
+export { getVideoComments, addComment, updateComment, deleteComment, getTweetComments, addTweetComment };

@@ -1,6 +1,6 @@
-# Videogram – Backend API for a Video Sharing Platform
+# ClipprX – Backend API for a Video Sharing Platform
 
-Videogram is a **backend-only REST API** for a video sharing platform, inspired by real-world applications like YouTube.  
+ClipprX is a **backend-only REST API** for a video sharing platform, inspired by real-world applications like YouTube.  
 This project focuses on **backend architecture, authentication, database design, and scalable API development**.
 
 The frontend is intentionally not included, as the primary goal is to demonstrate **backend engineering skills**.

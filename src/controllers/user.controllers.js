@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.models.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
@@ -381,7 +381,7 @@ const updateCoverImage = asyncHandler(async (req, res) => {
     throw new ApiError(400, "cover Image file is missing");
   }
 
-  const coverImage = uploadOnCloudinary(coverImageLocalPath);
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
   if (!coverImage.secure_url) {
     throw new ApiError(400, "Error while uploading the coverImage");
@@ -471,6 +471,79 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, channel[0], "Channel fetched successfully"));
 });
 
+const searchUser = asyncHandler(async (req, res) => {
+  const { query } = req.query;
+
+  if (!query?.trim()) {
+    throw new ApiError(400, "Query is required");
+  }
+
+  const users = await User.aggregate([
+    {
+      $match: {
+        $or: [
+          { username: { $regex: query, $options: "i" } },
+          { fullName: { $regex: query, $options: "i" } }
+        ]
+      }
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "subscribers"
+      }
+    },
+    {
+      $lookup: {
+        from: "videos",
+        localField: "_id",
+        foreignField: "owner",
+        as: "videos"
+      }
+    },
+    {
+      $addFields: {
+        subscriberCount: { $size: "$subscribers" },
+        videoCount: {
+          $size: {
+            $filter: {
+              input: "$videos",
+              as: "v",
+              cond: { $eq: ["$$v.isPublished", true] }
+            }
+          }
+        },
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+            then: true,
+            else: false
+          }
+        }
+      }
+    },
+    {
+      $project: {
+        username: 1,
+        fullName: 1,
+        avatar: 1,
+        subscriberCount: 1,
+        videoCount: 1,
+        isSubscribed: 1
+      }
+    },
+    {
+      $limit: 50
+    }
+  ]);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, users, "Users fetched successfully"));
+});
+
 const getWatchHistory = asyncHandler(async (req, res) => {
   const user = await User.aggregate([
     {
@@ -479,11 +552,19 @@ const getWatchHistory = asyncHandler(async (req, res) => {
       },
     },
     {
+      $project: {
+        watchHistory: 1,
+      },
+    },
+    {
+      $unwind: "$watchHistory", // Unwind to process each video in order
+    },
+    {
       $lookup: {
         from: "videos",
         localField: "watchHistory",
         foreignField: "_id",
-        as: "watchHistory",
+        as: "video",
         pipeline: [
           {
             $lookup: {
@@ -504,25 +585,54 @@ const getWatchHistory = asyncHandler(async (req, res) => {
           },
           {
             $addFields: {
-              owner: {
-                $first: "$owner",
-              },
+              owner: { $first: "$owner" },
+            },
+          },
+          {
+            $lookup: {
+              from: "likes",
+              localField: "_id",
+              foreignField: "video",
+              as: "likes",
+            },
+          },
+          {
+            $addFields: {
+              likesCount: { $size: "$likes" },
             },
           },
         ],
       },
     },
+    {
+      $unwind: "$video", 
+    },
+    {
+      $replaceRoot: {
+        newRoot: "$video",
+      },
+    },
   ]);
+
+  
+  const reversedHistory = user.reverse();
 
   return res
     .status(200)
     .json(
       new ApiResponse(
         200,
-        user[0].watchHistory,
-        "Watch History fected successfully"
+        reversedHistory,
+        "Watch History fetched successfully"
       )
     );
+});
+
+const getTotalUserCount = asyncHandler(async (req, res) => {
+  const count = await User.countDocuments();
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { count }, "Total user count fetched successfully"));
 });
 
 export {
@@ -537,4 +647,6 @@ export {
   updateCoverImage,
   getUserChannelProfile,
   getWatchHistory,
+  searchUser,
+  getTotalUserCount,
 };

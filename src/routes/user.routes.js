@@ -11,6 +11,8 @@ import {
   updateCoverImage,
   getUserChannelProfile,
   getWatchHistory,
+  searchUser,
+  getTotalUserCount,
 } from "../controllers/user.controllers.js";
 import { upload } from "../middlewares/multer.middlewares.js";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
@@ -54,5 +56,9 @@ router
 router.route("/channel/:username").post(verifyJWT, getUserChannelProfile);
 
 router.route("/watch-history").post(verifyJWT, getWatchHistory);
+
+router.route("/search").get(verifyJWT, searchUser);
+
+router.route("/stats/total-users").get(getTotalUserCount);
 
 export default router;

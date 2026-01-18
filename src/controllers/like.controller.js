@@ -128,27 +128,93 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
 });
 
 const getLikedVideos = asyncHandler(async (req, res) => {
-  const userId = req.user?._id;
+  const likedVideos = await Like.aggregate([
+    {
+      $match: {
+        likedBy: new mongoose.Types.ObjectId(req.user._id),
+        video: { $ne: null } // Ensure it's a video like
+      }
+    },
+    {
+      $lookup: {
+        from: "videos",
+        localField: "video",
+        foreignField: "_id",
+        as: "video",
+        pipeline: [
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "owner",
+              pipeline: [
+                {
+                  $project: {
+                    username: 1,
+                    fullName: 1,
+                    avatar: 1
+                  }
+                }
+              ]
+            }
+          },
+          {
+            $addFields: {
+              owner: { $first: "$owner" }
+            }
+          }
+        ]
+      }
+    },
+    {
+      $unwind: "$video"
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "video._id",
+        foreignField: "video",
+        as: "likes"
+      }
+    },
+    {
+      $addFields: {
+        "video.likesCount": { $size: "$likes" }
+      }
+    },
+    {
+      $sort: {
+        createdAt: -1
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        video: {
+          _id: 1,
+          videoFile: 1,
+          thumbnail: 1,
+          title: 1,
+          description: 1,
+          duration: 1,
+          views: 1,
+          isPublished: 1,
+          owner: 1,
+          createdAt: 1,
+          likesCount: 1
+        }
+      }
+    }
+  ]);
 
-  const like = await Like.find({
-    likedBy: userId,
-    video: { $ne: null },
-  })
-    .populate({
-      path: "video",
-      select: "title thumbnail owner",
-      populate: {
-        path: "owner",
-        select: "username avatar",
-      },
-    })
-    .sort({
-      createdAt: -1,
-    });
+  // Transform to match frontend expectation (array of likes containing video object) is already handled by structure, 
+  // but let's check frontend. Frontend expects: res.data.data.map(item => item.video) usually.
+  // The current structure returns [{ video: { ... } }, { video: { ... } }] which matches the previous structure.
 
   return res
     .status(200)
-    .json(new ApiResponse(200, like, "liked video fetched successfully"));
+    .json(new ApiResponse(200, likedVideos, "liked video fetched successfully"));
 });
 
 export { toggleCommentLike, toggleTweetLike, toggleVideoLike, getLikedVideos };

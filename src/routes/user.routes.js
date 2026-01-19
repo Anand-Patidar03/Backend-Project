@@ -13,6 +13,8 @@ import {
   getWatchHistory,
   searchUser,
   getTotalUserCount,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/user.controllers.js";
 import { upload } from "../middlewares/multer.middlewares.js";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
@@ -36,6 +38,8 @@ router.route("/register").post(
 );
 
 router.route("/login").post(loginUser);
+router.route("/forgot-password").post(forgotPassword);
+router.route("/reset-password/:token").post(resetPassword);
 
 router.route("/logout").post(verifyJWT, logoutUser);
 

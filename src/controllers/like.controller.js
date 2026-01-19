@@ -214,4 +214,57 @@ const getLikedVideos = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, likedVideos, "liked video fetched successfully"));
 });
 
-export { toggleCommentLike, toggleTweetLike, toggleVideoLike, getLikedVideos };
+const getLikedUsers = asyncHandler(async (req, res) => {
+  const { videoId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(videoId)) {
+    throw new ApiError(400, "Invalid Video ID");
+  }
+
+  const likedUsers = await Like.aggregate([
+    {
+      $match: {
+        video: new mongoose.Types.ObjectId(videoId),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "likedBy",
+        foreignField: "_id",
+        as: "likedBy",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              fullName: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $addFields: {
+        likedBy: {
+          $first: "$likedBy",
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        likedBy: 1,
+      },
+    },
+    {
+      $replaceRoot: { newRoot: "$likedBy" }
+    }
+  ]);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, likedUsers, "Liked users fetched successfully"));
+});
+
+export { toggleCommentLike, toggleTweetLike, toggleVideoLike, getLikedVideos, getLikedUsers };
